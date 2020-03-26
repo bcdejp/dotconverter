@@ -65,10 +65,9 @@ def hsv2palette(x, y, z):
     pallette = [int(x/179*step_hue), int(y/255*step_stc), int(z/255*step_vlb)]
     return pallette
 
-# 配列化
-def num3label(x,y,z):
-    label = str(x)+'+'+str(y)+'+'+str(z)
-    return label
+# ラベル→数値
+def lable_num3(label):
+    return label.split('+')
 
 
 if __name__ == '__main__':
@@ -81,6 +80,9 @@ if __name__ == '__main__':
         
     # ドット絵をファイル出力
     cv2.imwrite("./dot.png", img)
+
+    # BGRのテーブル
+    raw_array = np.asarray(img) #numpyで扱える配列をつくる
 
     # 色配列の変換(BGR->HSV)
     # BGR(256,256,256)->HSV(180,256,256)
@@ -140,9 +142,28 @@ if __name__ == '__main__':
     wb = openpyxl.Workbook()
     sheet = wb.active
     sheet.title = 'my_design'
+
+    # image出力
     for x in range(0, width):
         sheet.column_dimensions[openpyxl.utils.get_column_letter(x+1)].width = 3
         for y in range(0, height):
+            # index
             sheet.cell(x+1, y+1).value = dot_table[x][y]
+            # color
+            hex_color = '%02X%02X%02X' % (int(raw_array[x,y,2]),int(raw_array[x,y,1]),int(raw_array[x,y,0]))
+            fill = openpyxl.styles.PatternFill(patternType='solid', fgColor=hex_color)
+            sheet.cell(x+1, y+1).fill = fill
+    
+    # パレット出力
+    counter = 0
+    for item in list_color:
+        sheet.cell(height+counter+2, 1).value = str(counter)
+        label_array = lable_num3(item[0])
+        sheet.cell(height+counter+2, 2).value = str(label_array[0])
+        sheet.cell(height+counter+2, 3).value = str(label_array[1])
+        sheet.cell(height+counter+2, 4).value = str(label_array[2])
+        counter = counter + 1
+
     wb.save('my_design.xlsx')
+    
     
