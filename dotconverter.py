@@ -2,7 +2,16 @@
 
 import cv2
 import numpy as np
-import collections
+import openpyxl
+import pprint
+
+width = 32
+height = 32
+colornum = 16
+
+step_hue = 32 # 色相段数
+step_stc = 16 # 彩度段数
+step_vlb = 16 # 明度段数
 
 # 減色処理
 def sub_color(src, K):
@@ -51,16 +60,18 @@ def num3label(x, y, z):
     label = str(x)+'+'+str(y)+'+'+str(z)
     return label
 
+# パレット変換(HSV)
+def hsv2palette(x, y, z):
+    pallette = [int(x/179*step_hue), int(y/255*step_stc), int(z/255*step_vlb)]
+    return pallette
+
+# 配列化
+def num3label(x,y,z):
+    label = str(x)+'+'+str(y)+'+'+str(z)
+    return label
+
 
 if __name__ == '__main__':
-
-    width = 32
-    height = 32
-    colornum = 16
-
-    step_hue = 32 # 色相段数
-    step_stc = 16 # 彩度段数
-    step_vlb = 16 # 明度段数
 
     # 入力画像を取得
     img = cv2.imread("./raw.png")
@@ -72,21 +83,66 @@ if __name__ == '__main__':
     cv2.imwrite("./dot.png", img)
 
     # 色配列の変換(BGR->HSV)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # BGR(256,256,256)->HSV(180,256,256)
+    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    # 色カウント(多く使われている色から降順ソート)
-    dict_color = {}
-    img_array = np.asarray(img) #numpyで扱える配列をつくる
+    # パレットカラーに変換
+    img_array = np.asarray(hsv_img) #numpyで扱える配列をつくる
     for x in range(0, width):
         for y in range(0, height):
-            print(img_array[x,y,])
-            color = num3label(int(img_array[x,y,0]*2),int(img_array[x,y,1]/step_stc),int(img_array[x,y,2]/step_vlb))
+            plt = hsv2palette(int(img_array[x,y,0]),int(img_array[x,y,1]),int(img_array[x,y,2]))
+            img_array[x,y,] = plt
+
+    # 色(BGR)カウント(多く使われている色から降順ソート)
+    dict_color = {}
+    #img_array = np.asarray(hsv_img) #numpyで扱える配列をつくる
+    for x in range(0, width):
+        for y in range(0, height):
+            #print(img_array[x,y,])
+            color = num3label(int(img_array[x,y,0]),int(img_array[x,y,1]),int(img_array[x,y,2]))
             if color not in dict_color:
                 dict_color[color] = 0
             else:
                 dict_color[color] = dict_color[color] + 1
-    dict_color = sorted(dict_color.items(), key=lambda x:-x[1])
+    list_color = sorted(dict_color.items(), key=lambda x:-x[1])
     print(dict_color)
 
-# Excelファイル出力
+    # カラーインディクスを作成
+    dict_index = dict_color.copy()
+    counter = 0
+    for item in list_color:
+        dict_index[item[0]]=counter
+        counter = counter + 1
 
+    # ドットテーブルの宣言
+    dot_table = [[0 for i in range(width)] for j in range(height)]
+
+    # ドットテーブルにインディクスを付与
+    img_array = np.asarray(hsv_img) #numpyで扱える配列をつくる
+    for x in range(0, width):
+        for y in range(0, height):
+            color = num3label(int(img_array[x,y,0]),int(img_array[x,y,1]),int(img_array[x,y,2]))
+            dot_table[x][y] = dict_index[color]
+    
+    # テスト表示(dot)       
+    for x in range(0, width):
+        for y in range(0, height):
+            print("{0:2d}".format(dot_table[x][y]), end='')
+        print("")
+
+    # パレットを表示
+    counter = 0
+    for item in list_color:
+        print(str(counter)+ ":" + str(item[1]) + ":" + item[0])
+        counter = counter + 1
+
+    # Excelファイル出力
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.title = 'my_design'
+    for x in range(0, width):
+        sheet.column_dimensions[openpyxl.utils.get_column_letter(x+1)].width = 3
+        for y in range(0, height):
+            sheet.cell(x+1, y+1).value = dot_table[x][y]
+    wb.save('my_design.xlsx')
+    
